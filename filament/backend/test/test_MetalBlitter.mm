@@ -256,7 +256,8 @@ TEST_F(BackendTest, MetalBlitterDepthMismatchSize) {
 #ifdef __EXCEPTIONS
     EXPECT_THROW(blitter.blit(cmdBuffer, args, "MetalBlitterDepthMismatchSize"),
             utils::PreconditionPanic);
-#else
+#elif GTEST_HAS_DEATH_TEST
+    // Death tests are unavailable on iOS/tvOS.
     EXPECT_DEATH(blitter.blit(cmdBuffer, args, "MetalBlitterDepthMismatchSize"),
             "MetalBlitter slow path does not support depth formats");
 #endif
