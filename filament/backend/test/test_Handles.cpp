@@ -27,11 +27,19 @@ using namespace filament::backend;
 // FIXME: consider making this constant non-private so we can use it in tests.
 static constexpr uint32_t HANDLE_HEAP_FLAG = 0x80000000u;
 static constexpr size_t POOL_SIZE_BYTES = 8 * 1024U * 1024U;
+// The sizes must match an instantiation that exists in the backend library:
+// HandleAllocatorGL normally, or HandleAllocatorMTL on Metal-only builds
+// (e.g. tvOS, where the OpenGL backend is disabled).
 // NOTE: actual count may be lower due to alignment requirements
+#if defined(FILAMENT_SUPPORTS_OPENGL)
 constexpr size_t const POOL_HANDLE_COUNT = POOL_SIZE_BYTES / (32 + 96 + 184); // 31775
-
-// This must match HandleAllocatorGL, so its implementation is present on all platforms.
 #define HandleAllocatorTest  HandleAllocator<32,  96, 184>    // ~4520 / pool / MiB
+#elif defined(FILAMENT_SUPPORTS_METAL)
+constexpr size_t const POOL_HANDLE_COUNT = POOL_SIZE_BYTES / (32 + 64 + 552);
+#define HandleAllocatorTest  HandleAllocator<32,  64, 552>    // HandleAllocatorMTL
+#else
+#error test_Handles requires the OpenGL or Metal backend
+#endif
 
 struct MyHandle {
 };
