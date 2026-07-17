@@ -6,4 +6,5 @@
 appropriate header in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
 
 ## Release notes for next branch cut
+- backend: re-enable the `backend_test` build on iOS (opt-in via `INSTALL_BACKEND_TEST`) and record its golden-image hashes
 - web: expand JS bindings coverage for Fence, SkinningBuffer, MorphTargetBuffer, and other previously unbound APIs
