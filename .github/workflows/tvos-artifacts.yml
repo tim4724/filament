@@ -1,0 +1,30 @@
+# Fork-only workflow: builds the tvOS release artifacts on demand.
+# Not part of the upstream PR (see tvos-support for the PR branch).
+name: tvos-artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [tvos-ci]
+
+jobs:
+  build-tvos-artifacts:
+    name: build-tvOS-artifacts
+    runs-on: macos-15
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4.1.6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mac-prereq
+      - name: Show SDKs
+        run: xcodebuild -showsdks | grep -i tv || true
+      - name: Build tvOS release (device + simulator + XCFrameworks + archive)
+        run: |
+          printf "y" | ./build.sh -s -i -a -p tvos release
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: filament-release-tvos
+          path: out/filament-release-tvos.tgz
+          if-no-files-found: error
