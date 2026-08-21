@@ -27,6 +27,9 @@
 #include <utils/compiler.h>
 #include <utils/Log.h>
 
+#include <cstring>
+#include <vector>
+
 using namespace bluevk;
 
 namespace filament::backend {
@@ -261,8 +264,8 @@ void VulkanReadPixels::run(fvkmemory::resource_ptr<VulkanTexture> srcTexture, ui
     if (memoryTypeIndex >= VK_MAX_MEMORY_TYPES) {
         memoryTypeIndex = selectMemoryFunc(memReqs.memoryTypeBits,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        FVK_LOGW
-                << "readPixels is slow because VK_MEMORY_PROPERTY_HOST_CACHED_BIT is not available";
+        FVK_LOGW << "readPixels: VK_MEMORY_PROPERTY_HOST_CACHED_BIT is not available; "
+                    "reshaping through a cached bounce copy";
     }
 
     FILAMENT_CHECK_POSTCONDITION(memoryTypeIndex < VK_MAX_MEMORY_TYPES)
@@ -379,8 +382,16 @@ void VulkanReadPixels::run(fvkmemory::resource_ptr<VulkanTexture> srcTexture, ui
         // pixels). So we can simply ask DataReshaper to read width * height elements with standard
         // row pitch!
         int const rowPitch = width * bpp;
-        if (!DataReshaper::reshapeImage(&p, componentType, componentCount, srcPixels, rowPitch,
-                    static_cast<int>(width), static_cast<int>(height), swizzle)) {
+
+        // The staging memory may be merely HOST_VISIBLE|HOST_COHERENT (HOST_CACHED is optional and
+        // absent on e.g. PowerVR): reading it through DataReshaper's per-texel loop then turns
+        // every 2-4 byte load into its own uncached memory transaction. Bounce the mapped range
+        // into cached heap memory with one bulk memcpy (which the CPU can issue as wide, streaming
+        // loads) and reshape from there; reshape only ever reads the first sample plane.
+        std::vector<uint8_t> cachedCopy(static_cast<size_t>(rowPitch) * height);
+        memcpy(cachedCopy.data(), srcPixels, cachedCopy.size());
+        if (!DataReshaper::reshapeImage(&p, componentType, componentCount, cachedCopy.data(),
+                    rowPitch, static_cast<int>(width), static_cast<int>(height), swizzle)) {
             FVK_LOGE << "Unsupported PixelDataFormat or PixelDataType";
         }
 
