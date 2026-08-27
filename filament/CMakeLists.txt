@@ -808,6 +808,12 @@ else()
             -Wover-aligned
             -Werror
     )
+    if (EMSCRIPTEN)
+        # Emscripten's clang (6.0.4) promotes unused-template into -Wall/-Wextra,
+        # turning pre-existing benign instances (robin_hash, CommandStream,
+        # gl_headers, utils/Allocator.h) into -Werror failures on the wasm build.
+        list(APPEND FILAMENT_WARNINGS -Wno-unused-template)
+    endif()
 endif()
 
 target_compile_options(${TARGET} PRIVATE
