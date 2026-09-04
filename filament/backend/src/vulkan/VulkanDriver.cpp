@@ -2417,6 +2417,22 @@ void VulkanDriver::beginRenderPass(Handle<HwRenderTarget> rth, const RenderPassP
         .renderArea = { .offset = {}, .extent = extent }
     };
 
+    // Constrain the render area to the pass's viewport: a view that draws into a
+    // sub-rect of a shared target (split-screen cells into one swapchain image)
+    // then loads and stores only its own tiles, instead of the whole attachment
+    // once per view. Everything a pass draws is scissored inside its viewport,
+    // and a clear applies to the render area, which is exactly the region the
+    // view is about to overwrite. The viewport is in GL convention (origin at
+    // the bottom); Vulkan's render area is top-left.
+    if (params.viewport.width > 0 && params.viewport.height > 0
+            && (params.viewport.width < extent.width || params.viewport.height < extent.height)) {
+        int32_t const top = int32_t(extent.height) - (params.viewport.bottom + int32_t(params.viewport.height));
+        renderPassInfo.renderArea = {
+            .offset = { params.viewport.left, top },
+            .extent = { params.viewport.width, params.viewport.height },
+        };
+    }
+
     rt->transformClientRectToPlatform(&renderPassInfo.renderArea);
 
     VkClearValue clearValues[
