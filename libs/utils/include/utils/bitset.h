@@ -55,10 +55,15 @@ public:
     using container_type = T;
 
 private:
-    alignas(BIT_COUNT % 128 == 0 ? 16 : alignof(T)) T storage[N];
-
 #if defined(TNT_UTILS_BITSET_USE_NEON)
+    // The NEON paths below load and store whole uint64x2_t, which need 16-byte alignment.
+    alignas(BIT_COUNT % 128 == 0 ? 16 : alignof(T)) T storage[N];
     static_assert(alignof(uint64x2_t) == 16, "NEON types must be 16-byte aligned");
+#else
+    // Natural alignment: over-aligning without NEON buys nothing, and would make types containing
+    // a bitset require more than alignof(std::max_align_t), which pool allocators
+    // (e.g. HandleAllocator) only guarantee as 8 on 32-bit ARM.
+    T storage[N];
 #endif
 
 public:
@@ -350,6 +355,9 @@ static_assert(sizeof(bitset32) == 4, "bitset32 isn't 32 bits!");
 static_assert(sizeof(bitset64) == 8, "bitset64 isn't 64 bits!");
 static_assert(sizeof(bitset128) == 16, "bitset128 isn't 128 bits!");
 static_assert(sizeof(bitset256) == 32, "bitset256 isn't 256 bits!");
+#if !defined(TNT_UTILS_BITSET_USE_NEON)
+static_assert(alignof(bitset128) == alignof(uint64_t), "bitset128 is over-aligned without NEON");
+#endif
 
 } // namespace utils
 

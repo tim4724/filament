@@ -30,3 +30,5 @@ appropriate header in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
   as the GL backend does for program binaries; the blob functions must be set before the `Engine`
   is created
 - build: add tvOS support (`appletvos`/`appletvsimulator`), Metal-only, via `./build.sh -p tvos`
+- utils: `bitset` is 16-byte aligned only where its NEON path needs it (AArch64), which fixes a
+  crash (SIGBUS) creating Vulkan descriptor-set layouts on 32-bit ARM
