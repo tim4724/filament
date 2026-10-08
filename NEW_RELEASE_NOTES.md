@@ -17,3 +17,5 @@ appropriate header in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
   for program binaries; the blob functions must be set before the `Engine` is created
 - utils: `bitset` is no longer over-aligned to 16 bytes, which fixes a crash (SIGBUS) creating
   Vulkan descriptor-set layouts on 32-bit ARM
+- engine: on Vulkan, a View rendered into the swap chain after others now clears its viewport
+  instead of loading it when `ClearOptions::clear` is set and no earlier View overlaps it
