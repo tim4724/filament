@@ -6,6 +6,8 @@
 appropriate header in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
 
 ## Release notes for next branch cut
+- engine: on Vulkan, a View rendered into the swap chain after others now clears its viewport
+  instead of loading it when `ClearOptions::clear` is set and no earlier View overlaps it
 - engine: `Texture::setImage()`, `Texture::setImageAsync()` and `Texture::generateMipmaps()` are
   now non-const; the const overloads are deprecated
 - engine: `Material::getDefaultInstance() const` is deprecated; use the non-const overload
