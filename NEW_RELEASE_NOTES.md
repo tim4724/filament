@@ -6,6 +6,9 @@
 appropriate header in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
 
 ## Release notes for next branch cut
+- opengl: on PowerVR Rogue drivers, per-frame buffer updates no longer go through
+  `glMapBufferRange`, and the GPU frame time is reported as unsupported instead of emulated with
+  fences
 - engine: on Vulkan, a View rendered into the swap chain after others now clears its viewport
   instead of loading it when `ClearOptions::clear` is set and no earlier View overlaps it
 - engine: `Texture::setImage()`, `Texture::setImageAsync()` and `Texture::generateMipmaps()` are

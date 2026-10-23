@@ -305,6 +305,19 @@ public:
         // charge the per-draw range bind the same way.
         bool disable_material_instance_uniform_batching;
 
+        // On PowerVR Rogue, glMapBufferRange(GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT) on a
+        // buffer the GPU still references allocates and copies a new backing store, and
+        // glUnmapBuffer copies again, so a per-frame UBO update through the mapping costs several
+        // times what glBufferSubData does. Write the unsynchronized and memory-mapped buffer
+        // updates with glBufferSubData instead.
+        bool disable_map_buffer_for_updates;
+
+        // Without GL_EXT_disjoint_timer_query the GPU frame time is emulated with two fences a
+        // frame and a thread waiting on them. The interval they measure includes the backend
+        // thread's own submission, and on some drivers the fences cost frames of their own.
+        // Report GPU time as unsupported instead.
+        bool disable_gpu_time_fence_emulation;
+
     } bugs = {};
 
     struct Procs {
@@ -404,6 +417,12 @@ private:
                     ""},
             {   bugs.disable_material_instance_uniform_batching,
                     "disable_material_instance_uniform_batching",
+                    "" },
+            {   bugs.disable_map_buffer_for_updates,
+                    "disable_map_buffer_for_updates",
+                    "" },
+            {   bugs.disable_gpu_time_fence_emulation,
+                    "disable_gpu_time_fence_emulation",
                     "" }
     }};
 

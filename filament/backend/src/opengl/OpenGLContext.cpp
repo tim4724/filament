@@ -221,7 +221,7 @@ OpenGLContext::OpenGLContext(OpenGLPlatform& platform,
         mGpuTimeSupported = true;
     } else
 #endif
-    if (platform.canCreateFence()) {
+    if (platform.canCreateFence() && !bugs.disable_gpu_time_fence_emulation) {
         mGpuTimeSupported = true;
     }
 
@@ -471,6 +471,13 @@ void OpenGLContext::initBugs(Bugs* bugs, Extensions const& exts,
             // range of one batched UBO costs more CPU on the backend thread than one UBO per
             // instance, the shape already used on ANGLE's Metal backend.
             bugs->disable_material_instance_uniform_batching = true;
+            // On PowerVR (Rogue GE9215) mapping a buffer the GPU still references for a write
+            // allocates and copies a new backing store, and the unmap copies again (see Bugs).
+            bugs->disable_map_buffer_for_updates = true;
+            // On PowerVR (Rogue GE9215, driver 23.2) there is no GL_EXT_disjoint_timer_query, and
+            // the fence-emulated frame time costs frames at four views for an interval that
+            // includes the backend thread's own submission.
+            bugs->disable_gpu_time_fence_emulation = true;
             // On PowerVR (Rogue GE8320) using gl_InstanceID too early in the shader doesn't work.
             bugs->powervr_shader_workarounds = true;
             // On PowerVR (Rogue GE8320) destroying a fbo after glBlitFramebuffer is effectively

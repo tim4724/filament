@@ -67,7 +67,7 @@ TimerQueryFactoryInterface* TimerQueryFactory::init(
         }
     } else
 #endif
-    if (platform.canCreateFence()) {
+    if (platform.canCreateFence() && !context.bugs.disable_gpu_time_fence_emulation) {
         // no timer queries, but we can use fences
         impl = new(std::nothrow) TimerQueryFenceFactory(platform);
     } else {
