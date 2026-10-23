@@ -19,3 +19,5 @@ appropriate header in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
   Vulkan descriptor-set layouts on 32-bit ARM
 - engine: on Vulkan, a View rendered into the swap chain after others now clears its viewport
   instead of loading it when `ClearOptions::clear` is set and no earlier View overlaps it
+- gl: on PowerVR Rogue GE9215, material-instance uniforms are no longer batched and buffer updates
+  no longer go through `glMapBufferRange`
