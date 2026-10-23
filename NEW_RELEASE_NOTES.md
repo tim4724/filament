@@ -23,3 +23,5 @@ appropriate header in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
 - materials: Flat interpolation now works with user-defined variables
 - engine: on Vulkan, a View rendered into the swap chain after others now clears its viewport
   instead of loading it when `ClearOptions::clear` is set and no earlier View overlaps it
+- gl: on PowerVR Rogue, material-instance uniforms are no longer batched and buffer updates no
+  longer go through `glMapBufferRange`
