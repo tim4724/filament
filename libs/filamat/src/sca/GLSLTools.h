@@ -119,6 +119,13 @@ public:
 
     struct FragmentShaderInfo {
         bool userMaterialHasCustomDepth = false;
+        // The material's fragment code (material(), and surfaceShading() when
+        // custom) reads the built-in position / normal / viewport interpolants
+        // or a shading_* global derived from them, directly or through a getter
+        // (getWorldPosition(), getNormalizedViewportCoord(), ...), followed
+        // through its own helpers. When it does not, an unlit material can skip
+        // emitting those interpolants (MaterialInfo::skipsSurfaceInterpolants).
+        bool userMaterialReadsSurfaceInterpolants = false;
     };
 
     // Return true if:

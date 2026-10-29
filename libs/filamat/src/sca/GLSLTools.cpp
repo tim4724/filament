@@ -29,7 +29,10 @@
 #include <InfoSink.h>
 #include <localintermediate.h>
 
+#include <algorithm>
+#include <string>
 #include <string_view>
+#include <vector>
 
 using namespace utils;
 using namespace glslang;
@@ -317,6 +320,79 @@ std::optional<GLSLTools::FragmentShaderInfo> GLSLTools::analyzeFragmentShader(
         return std::nullopt;
     }
 
+    // Does the user's code read the built-in surface interpolants? The
+    // interpolants themselves (vertex_worldPosition, vertex_worldNormal,
+    // vertex_worldTangent, vertex_position) and every global that
+    // computeShadingParams() / prepareMaterial() derive from them, which the
+    // user may read directly (shading_normal and friends are documented as
+    // accessible after prepareMaterial()) or through a getter
+    // (surface_getters.fs). The getters need no list of their own: the
+    // tracer follows calls into their bodies, where the symbols are.
+    //
+    // It follows every function the user's code calls, through the user's own
+    // helpers and Filament's getters alike, EXCEPT prepareMaterial(): that one
+    // is Filament's, and its reads are the ones the generated shader skips
+    // together with the interpolants. isFunctionCalled() is not reused because
+    // this needs a visited set over the call graph and that exclusion.
+    //
+    // KNOWN LIMIT, shared with the custom-depth detection above: the decision
+    // is taken on one preprocessed permutation of the material (this one), so
+    // a read hidden behind a TARGET_*_ENVIRONMENT or feature-level conditional
+    // that is false here is not seen.
+    static constexpr std::string_view kSurfaceInterpolantSymbols[] = {
+        "vertex_worldPosition", "vertex_worldNormal", "vertex_worldTangent",
+        "vertex_position", "shading_position", "shading_view",
+        "shading_normalizedViewportCoord", "shading_normal",
+        "shading_geometricNormal", "shading_reflected", "shading_NoV",
+        "shading_tangentToWorld", "shading_bentNormal", "shading_clearCoatNormal",
+    };
+    class SurfaceInterpolantReadFinder : public TIntermTraverser {
+        TIntermNode& mRoot;
+        std::vector<std::string> mVisited;
+    public:
+        bool found = false;
+        explicit SurfaceInterpolantReadFinder(TIntermNode& root) : mRoot(root) {}
+        void visitSymbol(TIntermSymbol* node) override {
+            if (found) {
+                return;
+            }
+            std::string_view const name(node->getName().c_str(), node->getName().size());
+            for (auto const symbol : kSurfaceInterpolantSymbols) {
+                if (name == symbol) {
+                    found = true;
+                    return;
+                }
+            }
+        }
+        bool visitAggregate(TVisit, TIntermAggregate* node) override {
+            if (found) {
+                return false;
+            }
+            if (node->getOp() != EOpFunctionCall) {
+                return true;
+            }
+            std::string_view const signature = node->getName();
+            if (ASTHelpers::getFunctionName(signature) == "prepareMaterial") {
+                return true;
+            }
+            std::string const key(signature);
+            if (std::find(mVisited.begin(), mVisited.end(), key) != mVisited.end()) {
+                return true;
+            }
+            mVisited.push_back(key);
+            if (TIntermAggregate* const def = ASTHelpers::getFunctionBySignature(signature, mRoot)) {
+                def->traverse(this);
+            }
+            return !found;
+        }
+    };
+    auto const readsSurfaceInterpolants = [&](TIntermNode* fct) {
+        SurfaceInterpolantReadFinder finder(*root);
+        fct->traverse(&finder);
+        return finder.found;
+    };
+    result.userMaterialReadsSurfaceInterpolants = readsSurfaceInterpolants(materialFctNode);
+
     if (hasCustomSurfaceShading) {
         materialFctNode = ASTHelpers::getFunctionByNameOnly("surfaceShading", *root);
         if (materialFctNode == nullptr) {
@@ -325,6 +401,7 @@ std::optional<GLSLTools::FragmentShaderInfo> GLSLTools::analyzeFragmentShader(
                           << io::endl;
             return std::nullopt;
         }
+        result.userMaterialReadsSurfaceInterpolants |= readsSurfaceInterpolants(materialFctNode);
     }
 
     return result;

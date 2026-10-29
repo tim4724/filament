@@ -55,6 +55,11 @@ struct UTILS_PUBLIC MaterialInfo {
     bool instanced;
     bool vertexDomainDeviceJittered;
     bool userMaterialHasCustomDepth;
+    // An unlit material that never reads the built-in world-position,
+    // world-normal and clip-position interpolants, with the fog variant
+    // filtered out and no refraction / reflections / shadow multiplier / TBN:
+    // its shaders do not emit them (MATERIAL_SKIPS_SURFACE_INTERPOLANTS).
+    bool skipsSurfaceInterpolants;
     int stereoscopicEyeCount;
     filament::SpecularAmbientOcclusion specularAO;
     filament::RefractionMode refractionMode;

@@ -12,6 +12,20 @@ LAYOUT_LOCATION(5) VARYING highp vec2 vertex_uv01;
 LAYOUT_LOCATION(5) VARYING highp vec4 vertex_uv01;
 #endif
 
+// MATERIAL_SKIPS_SURFACE_INTERPOLANTS is set by filamat for an unlit material
+// whose code never reads the built-in world-position, world-normal and
+// clip-position interpolants (see MaterialBuilder): computeShadingParams()
+// derives shading_position / shading_view / shading_normalizedViewportCoord
+// from them only for lighting, fog and the material getters, and
+// prepareMaterial() needs them for lit models only. On a tile-based GPU every
+// interpolant is parameter-buffer traffic per vertex, so such a material does
+// not emit them. The depth/picking variants keep them: they read
+// vertex_position and vertex_worldPosition.w themselves.
+#if defined(MATERIAL_SKIPS_SURFACE_INTERPOLANTS) && !defined(VARIANT_DEPTH)
+#define FILAMENT_SKIPS_SURFACE_INTERPOLANTS
+#endif
+
+#if !defined(FILAMENT_SKIPS_SURFACE_INTERPOLANTS)
 #if defined(VARIANT_HAS_MNT)
 LAYOUT_LOCATION(6) centroid VARYING highp vec4 vertex_worldPosition;
 #else
@@ -26,6 +40,7 @@ LAYOUT_LOCATION(8) SHADING_INTERPOLATION VARYING mediump vec4 vertex_worldTangen
 #endif
 
 LAYOUT_LOCATION(9) VARYING highp vec4 vertex_position;
+#endif // !FILAMENT_SKIPS_SURFACE_INTERPOLANTS
 
 #if defined(FILAMENT_HAS_FEATURE_INSTANCING)
 LAYOUT_LOCATION(10) flat VARYING highp int instance_index;

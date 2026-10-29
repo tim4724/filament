@@ -539,6 +539,77 @@ TEST_F(MaterialCompiler, StaticCodeAnalyzerReflectance) {
     EXPECT_TRUE(PropertyListsMatch(expected, properties));
 }
 
+// The surface-interpolant analysis: an unlit material whose code never reads
+// vertex_worldPosition / vertex_worldNormal / vertex_position, nor a shading_*
+// global derived from them, directly or through a getter, may skip emitting
+// those interpolants (MaterialInfo::skipsSurfaceInterpolants).
+static bool readsSurfaceInterpolants(const std::string& fragmentCode) {
+    const std::string shaderCode = shaderWithAllProperties(ShaderStage::FRAGMENT, fragmentCode,
+            "", MaterialBuilder::Shading::UNLIT);
+    auto const info = GLSLTools::analyzeFragmentShader(shaderCode, ShaderModel::MOBILE,
+            MaterialBuilder::MaterialDomain::SURFACE, MaterialBuilder::TargetApi::OPENGL,
+            MaterialBuilder::TargetLanguage::GLSL, false);
+    EXPECT_TRUE(info.has_value());
+    return info.has_value() && info->userMaterialReadsSurfaceInterpolants;
+}
+
+TEST_F(MaterialCompiler, StaticCodeAnalyzerSurfaceInterpolantsNotRead) {
+    EXPECT_FALSE(readsSurfaceInterpolants(R"(
+        void material(inout MaterialInputs material) {
+            prepareMaterial(material);
+            material.baseColor = vec4(vec3(getObjectUserData()), 1.0);
+        }
+    )"));
+}
+
+TEST_F(MaterialCompiler, StaticCodeAnalyzerSurfaceInterpolantsReadThroughGetter) {
+    EXPECT_TRUE(readsSurfaceInterpolants(R"(
+        void material(inout MaterialInputs material) {
+            prepareMaterial(material);
+            material.baseColor = vec4(getWorldPosition(), 1.0);
+        }
+    )"));
+    EXPECT_TRUE(readsSurfaceInterpolants(R"(
+        void material(inout MaterialInputs material) {
+            prepareMaterial(material);
+            material.baseColor = vec4(getNormalizedViewportCoord(), 1.0);
+        }
+    )"));
+}
+
+TEST_F(MaterialCompiler, StaticCodeAnalyzerSurfaceInterpolantsReadThroughHelper) {
+    EXPECT_TRUE(readsSurfaceInterpolants(R"(
+        vec3 helper() {
+            return getWorldViewVector();
+        }
+        void material(inout MaterialInputs material) {
+            prepareMaterial(material);
+            material.baseColor = vec4(helper(), 1.0);
+        }
+    )"));
+}
+
+TEST_F(MaterialCompiler, StaticCodeAnalyzerSurfaceInterpolantsReadDirectly) {
+    EXPECT_TRUE(readsSurfaceInterpolants(R"(
+        void material(inout MaterialInputs material) {
+            prepareMaterial(material);
+            material.baseColor = vec4(shading_view, 1.0);
+        }
+    )"));
+    EXPECT_TRUE(readsSurfaceInterpolants(R"(
+        void material(inout MaterialInputs material) {
+            prepareMaterial(material);
+            material.baseColor = vec4(shading_normalizedViewportCoord, 0.0, 1.0);
+        }
+    )"));
+    EXPECT_TRUE(readsSurfaceInterpolants(R"(
+        void material(inout MaterialInputs material) {
+            prepareMaterial(material);
+            material.baseColor = vertex_worldPosition;
+        }
+    )"));
+}
+
 TEST_F(MaterialCompiler, StaticCodeAnalyzerAmbientOcclusion) {
     const std::string fragmentCode(R"(
         void material(inout MaterialInputs material) {
