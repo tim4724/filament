@@ -179,6 +179,7 @@ private:
     std::vector<std::unique_ptr<VulkanCommandBuffer>> mBuffers;
     int8_t mRecording;
     VulkanFencePool mFencePool;
+    bool const mSerializeFenceQueries;
 
     std::unique_ptr<VulkanGroupMarkers> mGroupMarkers;
 };

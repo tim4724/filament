@@ -1302,6 +1302,15 @@ void VulkanPlatform::queryAndSetDeviceFeatures(Platform::DriverConfig const& dri
     context.mBlittableDepthStencilFormats =
             findBlittableDepthStencilFormats(mImpl->mPhysicalDevice);
     context.mFenceExportFlags = getFenceExportFlags();
+
+    // The proprietary PowerVR driver releases a submitted fence's sync fd in whichever query
+    // first sees the fence signaled, unguarded: two threads querying one fence at once, which
+    // the spec allows, both release it and close the same fd twice (seen on a GE9215, DDK
+    // 23.2). Mesa's PowerVR driver shares the vendor ID but none of that code.
+    bool const isImgTec = context.getPhysicalDeviceVendorId() == 0x1010;
+    bool const isMesaPowerVR =
+            context.mDriverProperties.driverID == VK_DRIVER_ID_IMAGINATION_OPEN_SOURCE_MESA;
+    context.mFenceQuerySerializationNeeded = isImgTec && !isMesaPowerVR;
 }
 
 QueueAssignment VulkanPlatform::getQueueAssignment(VkPhysicalDevice physicalDevice,

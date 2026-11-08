@@ -36,6 +36,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <shared_mutex>
 #include <utility>
 #include <vector>
@@ -169,7 +170,8 @@ private:
 // Wrapper to enable use of shared_ptr for implementing shared ownership of low-level Vulkan fences.
 struct VulkanCmdFence {
     explicit VulkanCmdFence(VkFence fence,
-                            std::function<void(VkFence)> recycleFn = nullptr);
+                            std::function<void(VkFence)> recycleFn = nullptr,
+                            bool serializeQueries = false);
     ~VulkanCmdFence();
 
     // Creates a VulkanCmdFence with its status set to VK_SUCCESS. It holds
@@ -229,6 +231,9 @@ private:
     // to this VulkanCmdFence.
     void swapRecycleFn(std::function<void(VkFence)> recycleFn);
 
+    VkResult getFenceStatus(VkDevice device);
+    VkResult pollFence(VkDevice device, uint64_t timeout);
+
     std::shared_mutex mLock; // NOLINT(*-include-cleaner)
     std::condition_variable_any mCond;
     bool mCanceled = false;
@@ -239,6 +244,13 @@ private:
     VkFence const mFence;
 
     std::function<void(VkFence)> mRecycleFn;
+
+    // Set when the driver is not safe against two threads querying this fence at once (see
+    // VulkanContext::isFenceQuerySerializationNeeded). Every query of mFence is then a
+    // non-blocking one made under mQueryLock, and a wait polls: a wait blocked in the driver
+    // holding the lock would stall another thread's poll, e.g. the FrameSkipper's.
+    bool const mSerializeQueries;
+    std::mutex mQueryLock;
 };
 
 struct VulkanFence : public HwFence, fvkmemory::ThreadSafeResource {

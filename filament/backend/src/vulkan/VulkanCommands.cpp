@@ -238,7 +238,8 @@ CommandBufferPool::CommandBufferPool(VulkanContext const& context, VkDevice devi
         uint8_t queueFamilyIndex, VulkanSemaphoreManager* semaphoreManager, bool isProtected)
     : mDevice(device),
       mRecording(INVALID),
-      mFencePool(context, device, CAPACITY) {
+      mFencePool(context, device, CAPACITY),
+      mSerializeFenceQueries(context.isFenceQuerySerializationNeeded()) {
     VkCommandPoolCreateInfo createInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
@@ -333,6 +334,15 @@ fvkmemory::resource_ptr<VulkanSemaphore> CommandBufferPool::flush() {
 }
 
 void CommandBufferPool::wait() {
+    if (mSerializeFenceQueries) {
+        // Through each fence's own wait, which serializes its queries.
+        mSubmitted.forEachSetBit([this] (size_t index) {
+            mBuffers[index]->getFenceStatus()->wait(mDevice, UINT64_MAX,
+                    std::chrono::steady_clock::time_point::max());
+        });
+        update();
+        return;
+    }
     uint8_t count = 0;
     VkFence fences[CAPACITY];
     mSubmitted.forEachSetBit([this, &count, &fences] (size_t index) {

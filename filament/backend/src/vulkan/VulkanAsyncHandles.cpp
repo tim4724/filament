@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <mutex>
 #include <shared_mutex>
+#include <thread>
 
 using namespace bluevk;
 
@@ -189,8 +190,9 @@ void VulkanProgram::flushPushConstants(VkPipelineLayout layout) {
     mQueuedPushConstants.clear();
 }
 
-VulkanCmdFence::VulkanCmdFence(VkFence fence, std::function<void(VkFence)> recycleFn)
-    : mFence(fence), mRecycleFn(recycleFn) {
+VulkanCmdFence::VulkanCmdFence(VkFence fence, std::function<void(VkFence)> recycleFn,
+        bool serializeQueries)
+    : mFence(fence), mRecycleFn(recycleFn), mSerializeQueries(serializeQueries) {
 }
 
 VulkanCmdFence::~VulkanCmdFence() {
@@ -205,9 +207,34 @@ std::shared_ptr<VulkanCmdFence> VulkanCmdFence::completed() noexcept {
     return cmdFence;
 }
 
+VkResult VulkanCmdFence::getFenceStatus(VkDevice device) {
+    if (!mSerializeQueries) {
+        return vkGetFenceStatus(device, mFence);
+    }
+    std::lock_guard const l(mQueryLock);
+    return vkGetFenceStatus(device, mFence);
+}
+
+// vkWaitForFences() by polling, for a driver that needs the queries serialized.
+VkResult VulkanCmdFence::pollFence(VkDevice device, uint64_t const timeout) {
+    auto const start = std::chrono::steady_clock::now();
+    while (true) {
+        VkResult const status = getFenceStatus(device);
+        if (status != VK_NOT_READY) {
+            return status;
+        }
+        auto const waited = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - start).count();
+        if (uint64_t(waited) >= timeout) {
+            return VK_TIMEOUT;
+        }
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
+}
+
 void VulkanCmdFence::refreshStatus(VkDevice device) {
     if (mFence != VK_NULL_HANDLE) {
-        VkResult status = vkGetFenceStatus(device, mFence);
+        VkResult status = getFenceStatus(device);
         if (status == VK_SUCCESS) {
             setStatus(status);
         }
@@ -251,7 +278,9 @@ FenceStatus VulkanCmdFence::wait(VkDevice device, uint64_t const timeout,
     // However, since we're going to wait on the fence, and because the fence is guaranteed
     // to stay in scope as long as this VulkanCmdFence is still alive, we do not need a lock
     // here.
-    VkResult const status = vkWaitForFences(device, 1, &mFence, VK_TRUE, timeout);
+    VkResult const status = mSerializeQueries
+            ? pollFence(device, timeout)
+            : vkWaitForFences(device, 1, &mFence, VK_TRUE, timeout);
     if (status == VK_TIMEOUT) {
         return FenceStatus::TIMEOUT_EXPIRED;
     }
